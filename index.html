@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Playlist Speed Player</title>
+<style>
+  :root {
+    --bg: #0e0f13;
+    --panel: #171921;
+    --panel-2: #1f2230;
+    --border: #2a2e3f;
+    --text: #e8eaf2;
+    --muted: #8b90a3;
+    --accent: #e02f2f;
+    --accent-2: #ff5c5c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header .logo { font-weight: 700; font-size: 18px; letter-spacing: .3px; }
+  header .logo span { color: var(--accent-2); }
+  #plurl {
+    flex: 1;
+    max-width: 520px;
+    margin-left: auto;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  #plurl:focus { outline: none; border-color: var(--accent-2); }
+  #loadBtn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #loadBtn:hover { background: #c42626; }
+
+  main {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 18px;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .playerwrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .video-box { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; }
+  #player { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  #startOverlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.75);
+    z-index: 5;
+  }
+  #startOverlay button {
+    background: var(--accent);
+    color: #fff; border: none;
+    font-size: 18px; font-weight: 700;
+    padding: 16px 34px; border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgba(224,47,47,.45);
+  }
+  #startOverlay button:hover { background: #c42626; }
+
+  .controls {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #nowTitle { font-size: 15px; font-weight: 600; }
+  #nowSub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .btn:hover { border-color: var(--accent-2); }
+  .btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .speedblock { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .speedblock label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+  #speedDisplay { font-weight: 700; font-size: 16px; color: var(--accent-2); min-width: 52px; }
+  input[type="range"] { width: 180px; accent-color: var(--accent); }
+
+  .toggles { display: flex; gap: 14px; align-items: center; }
+  .toggles label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  .sidebar {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 120px);
+  }
+  .sidebar h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--muted);
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  #vlist { list-style: none; overflow-y: auto; flex: 1; padding: 6px 0; }
+  #vlist li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    border-left: 3px solid transparent;
+  }
+  #vlist li:hover { background: var(--panel-2); }
+  #vlist li.current {
+    background: var(--panel-2);
+    border-left-color: var(--accent-2);
+    font-weight: 600;
+  }
+  #vlist li .idx { color: var(--muted); font-variant-numeric: tabular-nums; width: 22px; flex-shrink: 0; }
+  #vlist li .ttl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hint { padding: 10px 16px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">▶ Playlist <span>Speed Player</span></div>
+  <input id="plurl" type="text" spellcheck="false" placeholder="Playlist URL or ID (default: Scrap YT)" />
+  <button id="loadBtn">Load</button>
+</header>
+
+<main>
+  <section class="playerwrap">
+    <div class="video-box">
+      <div id="player"></div>
+      <div id="startOverlay"><button id="startBtn">▶ Play playlist</button></div>
+    </div>
+    <div class="controls">
+      <div>
+        <div id="nowTitle">Ready</div>
+        <div id="nowSub">Async loading…</div>
+      </div>
+
+      <div class="speedblock">
+        <label>Speed</label>
+        <button class="btn speed" data-rate="0.25">0.25×</button>
+        <button class="btn speed" data-rate="0.5">0.5×</button>
+        <button class="btn speed" data-rate="0.75">0.75×</button>
+        <button class="btn speed active" data-rate="1">1×</button>
+        <button class="btn speed" data-rate="1.25">1.25×</button>
+        <button class="btn speed" data-rate="1.5">1.5×</button>
+        <button class="btn speed" data-rate="2">2×</button>
+        <input id="speedFine" type="range" min="0.25" max="2" step="0.05" value="1" />
+        <span id="speedDisplay">1.00×</span>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="prevBtn">⏮ Prev</button>
+        <button class="btn" id="nextBtn">⏭ Next</button>
+        <div class="toggles">
+          <label><input type="checkbox" id="autoNext" checked /> Auto-play next</label>
+          <label><input type="checkbox" id="loopPl" /> Loop playlist</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="sidebar">
+    <h2>Playlist</h2>
+    <ul id="vlist"></ul>
+    <div class="hint">Click a video to jump to it. Title loads via YouTube oEmbed.</div>
+  </aside>
+</main>
+
+<script>
+  const DEFAULT_PLAYLIST = "PLMA7XybhrXew";
+  const YT_STATE = { UNSTARTED: -1, ENDED: 0, PLAYING: 1, PAUSED: 2, BUFFERING: 3, CUED: 5 };
+
+  let player = null;
+  let currentPlaylist = null;
+  let knownIds = [];                 // ids of videos in active playlist
+  let desiredRate = parseFloat(localStorage.getItem("vpr") || "1");
+  const titleCache = JSON.parse(localStorage.getItem("vprTitles") || "{}");
+
+  // ---------- helpers ----------
+  function extractPlaylistId(input) {
+    const s = (input || "").trim();
+    if (!s) return null;
+    let m = s.match(/[?&]list=([^&]+)/);
+    if (m) return m[1];
+    // bare ID pasted
+    if (/^[A-Za-z0-9_-]{12,42}$/.test(s)) return s;
+    return null;
+  }
+
+  function saveTitles() {
+    try { localStorage.setItem("vprTitles", JSON.stringify(titleCache)); } catch (e) {}
+  }
+
+  async function fetchTitle(videoId) {
+    if (titleCache[videoId]) return titleCache[videoId];
+    try {
+      const res = await fetch("https://www.youtube.com/oembed?format=json&url=" +
+        encodeURIComponent("https://www.youtube.com/watch?v=" + videoId));
+      if (!res.ok) throw new Error("oembed " + res.status);
+      const data = await res.json();
+      titleCache[videoId] = data.title || null;
+      saveTitles();
+      return titleCache[videoId];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ---------- playlist UI ----------
+  function buildList(ids) {
+    knownIds = ids.slice();
+    const ul = document.getElementById("vlist");
+    ul.innerHTML = "";
+    ids.forEach((vid, i) => {
+      const li = document.createElement("li");
+      li.dataset.vid = vid;
+      li.innerHTML = '<span class="idx">' + (i + 1) + '</span><span class="ttl">video ' + vid.slice(0, 8) + '…</span>';
+      li.addEventListener("click", () => {
+        if (player && player.playVideoAt && player.getPlaylist) {
+          const idx = player.getPlaylist().indexOf(vid);
+          if (idx >= 0) player.playVideoAt(idx);
+        }
+      });
+      ul.appendChild(li);
+      fetchTitle(vid).then(t => {
+        const span = li.querySelector(".ttl");
+        if (span && t) span.textContent = t;
+      });
+    });
+    highlightCurrent();
+  }
+
+  function highlightCurrent() {
+    if (!player || !player.getPlaylist) return;
+    let ids;
+    try { ids = player.getPlaylist(); } catch (e) { return; }
+    if (!ids) return;
+    const cur = ids[player.getPlaylistIndex()];
+    const ul = document.getElementById("vlist");
+    Array.from(ul.children).forEach(li => {
+      li.classList.toggle("current", li.dataset.vid === cur);
+      if (li.dataset.vid === cur) li.scrollIntoView({ block: "nearest" });
+    });
+    const data = player.getVideoData ? player.getVideoData() : {};
+    document.getElementById("nowTitle").textContent = data.title || "Now playing…";
+    const n = ids.length > 0 ? ids.indexOf(cur) + 1 : 0;
+    document.getElementById("nowSub").textContent =
+      "Video " + n + " of " + ids.length + (document.getElementById("loopPl").checked ? " · looping" : "");
+  }
+
+  function refreshPlaylist() {
+    if (!player || !player.getPlaylist) return;
+    let ids;
+    try { ids = player.getPlaylist(); } catch (e) { return; }
+    if (!ids || !ids.length) return;
+    if (JSON.stringify(ids) !== JSON.stringify(knownIds)) buildList(ids);
+    else highlightCurrent();
+  }
+
+  // ---------- speed ----------
+  function applyRate(rate) {
+    desiredRate = rate;
+    localStorage.setItem("vpr", String(rate));
+    document.getElementById("speedFine").value = rate;
+    document.getElementById("speedDisplay").textContent = rate.toFixed(2) + "×";
+    document.querySelectorAll(".speed").forEach(b =>
+      b.classList.toggle("active", parseFloat(b.dataset.rate) === rate));
+    if (player && player.getPlaybackRate && player.setPlaybackRate) {
+      try {
+        if (player.getPlaybackRate() !== rate) player.setPlaybackRate(rate);
+      } catch (e) {}
+    }
+  }
+
+  // ---------- auto-advance ----------
+  function handleEnded() {
+    const auto = document.getElementById("autoNext").checked;
+    const loop = document.getElementById("loopPl").checked;
+    if (!auto) { player && player.pauseVideo && player.pauseVideo(); return; }
+    if (!player || !player.getPlaylist) return;
+    let ids = player.getPlaylist() || knownIds;
+    const idx = player.getPlaylistIndex();
+    if (idx > -1 && idx === ids.length - 1 && !loop) {
+      player.pauseVideo();
+      return;
+    }
+    if (player.nextVideo) player.nextVideo();
+  }
+
+  // ---------- events ----------
+  function onPlayerStateChange(e) {
+    if (e.data === YT_STATE.PLAYING) {
+      document.getElementById("startOverlay").style.display = "none";
+      applyRate(desiredRate);           // re-apply speed for every new video
+      refreshPlaylist();
+    } else if (e.data === YT_STATE.ENDED) {
+      setTimeout(handleEnded, 200);     // small delay lets YT settle
+    }
+    highlightCurrent();
+  }
+
+  function onPlaybackRateChange(e) {
+    const eff = e.data;
+    document.getElementById("speedDisplay").textContent = eff.toFixed(2) + "×";
+  }
+
+  function onPlayerReady() {
+    document.getElementById("plurl").value = DEFAULT_PLAYLIST;
+    refreshPlaylist();
+  }
+
+  // ---------- YT init ----------
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player("player", {
+      height: "100%",
+      width: "100%",
+      playerVars: {
+        list: DEFAULT_PLAYLIST,
+        listType: "playlist",
+        autoplay: 1,
+        playsinline: 1,
+        rel: 0,
+        modestbranding: 1
+      },
+      events: {
+        onReady: onPlayerReady,
+        onStateChange: onPlayerStateChange,
+        onPlaybackRateChange: onPlaybackRateChange
+      }
+    });
+  };
+
+  (function loadYT() {
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+  })();
+
+  // ---------- UI wiring ----------
+  document.querySelectorAll(".speed").forEach(b =>
+    b.addEventListener("click", () => applyRate(parseFloat(b.dataset.rate))));
+  document.getElementById("speedFine").addEventListener("input", e => applyRate(parseFloat(e.target.value)));
+
+  document.getElementById("nextBtn").addEventListener("click", () => player && player.nextVideo && player.nextVideo());
+  document.getElementById("prevBtn").addEventListener("click", () => player && player.previousVideo && player.previousVideo());
+
+  document.getElementById("loadBtn").addEventListener("click", () => {
+    const id = extractPlaylistId(document.getElementById("plurl").value) || DEFAULT_PLAYLIST;
+    currentPlaylist = id;
+    buildList([]);
+    player.loadPlaylist({ list: id, listType: "playlist", index: 0, startSeconds: 0 });
+    document.getElementById("nowTitle").textContent = "Loading playlist…";
+    document.getElementById("nowSub").textContent = "";
+  });
+
+  document.getElementById("startBtn").addEventListener("click", () => {
+    if (player) player.playVideo();
+  });
+
+  document.getElementById("loopPl").addEventListener("change", highlightCurrent);
+  applyRate(desiredRate);
+</script>
+</body>
+</html>
